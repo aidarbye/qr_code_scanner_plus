@@ -6,12 +6,14 @@ class QrScannerOverlayShape extends ShapeBorder {
   QrScannerOverlayShape({
     this.borderColor = Colors.red,
     this.borderWidth = 3.0,
-    this.overlayColor = const Color.fromRGBO(0, 0, 0, 0.5),
+    this.overlayColor = const Color.fromRGBO(0, 0, 0, 80),
     this.borderRadius = 0,
     this.borderLength = 40,
     double? cutOutSize,
     double? cutOutWidth,
     double? cutOutHeight,
+    this.hintLines = true,
+    this.customRect,
     this.cutOutBottomOffset = 0,
   })  : cutOutWidth = cutOutWidth ?? cutOutSize ?? 250,
         cutOutHeight = cutOutHeight ?? cutOutSize ?? 250 {
@@ -34,6 +36,8 @@ class QrScannerOverlayShape extends ShapeBorder {
   final double cutOutWidth;
   final double cutOutHeight;
   final double cutOutBottomOffset;
+  final bool hintLines;
+  final Rect? customRect;
 
   @override
   EdgeInsetsGeometry get dimensions => const EdgeInsets.all(10);
@@ -88,17 +92,28 @@ class QrScannerOverlayShape extends ShapeBorder {
       ..color = overlayColor
       ..style = PaintingStyle.fill;
 
-    final borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = borderWidth;
-
     final boxPaint = Paint()
       ..color = borderColor
       ..style = PaintingStyle.fill
       ..blendMode = BlendMode.dstOut;
 
-    final cutOutRect = Rect.fromLTWH(
+    final hintLinesPaint = Paint()
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke
+      ..color = borderColor
+      ..shader = LinearGradient(
+        colors: [
+          borderColor.withValues(alpha: 0.15),
+          borderColor,
+          borderColor,
+          borderColor.withValues(alpha: 0.15),
+        ],
+        stops: const [0.25, 0.40, 0.60, 0.75],
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+      ).createShader(rect);
+
+    final cutOutRect = customRect ?? Rect.fromLTWH(
       rect.left + width / 2 - _cutOutWidth / 2 + borderOffset,
       -cutOutBottomOffset +
           rect.top +
@@ -118,50 +133,7 @@ class QrScannerOverlayShape extends ShapeBorder {
         rect,
         backgroundPaint,
       )
-      // Draw top right corner
-      ..drawRRect(
-        RRect.fromLTRBAndCorners(
-          cutOutRect.right - _borderLength,
-          cutOutRect.top,
-          cutOutRect.right,
-          cutOutRect.top + _borderLength,
-          topRight: Radius.circular(borderRadius),
-        ),
-        borderPaint,
-      )
-      // Draw top left corner
-      ..drawRRect(
-        RRect.fromLTRBAndCorners(
-          cutOutRect.left,
-          cutOutRect.top,
-          cutOutRect.left + _borderLength,
-          cutOutRect.top + _borderLength,
-          topLeft: Radius.circular(borderRadius),
-        ),
-        borderPaint,
-      )
-      // Draw bottom right corner
-      ..drawRRect(
-        RRect.fromLTRBAndCorners(
-          cutOutRect.right - _borderLength,
-          cutOutRect.bottom - _borderLength,
-          cutOutRect.right,
-          cutOutRect.bottom,
-          bottomRight: Radius.circular(borderRadius),
-        ),
-        borderPaint,
-      )
-      // Draw bottom left corner
-      ..drawRRect(
-        RRect.fromLTRBAndCorners(
-          cutOutRect.left,
-          cutOutRect.bottom - _borderLength,
-          cutOutRect.left + _borderLength,
-          cutOutRect.bottom,
-          bottomLeft: Radius.circular(borderRadius),
-        ),
-        borderPaint,
-      )
+      // * main rounded rectangle
       ..drawRRect(
         RRect.fromRectAndRadius(
           cutOutRect,
@@ -169,9 +141,88 @@ class QrScannerOverlayShape extends ShapeBorder {
         ),
         boxPaint,
       )
-      ..restore();
-  }
+      // * Draw bottom and top left corner
+      ..drawPath(
+        Path()
+          ..moveTo(cutOutRect.left + _borderLength, cutOutRect.top)
+          ..lineTo(cutOutRect.left + borderRadius, cutOutRect.top)
+          ..addArc(
+            Rect.fromCircle(
+              center: Offset(cutOutRect.left + borderRadius, cutOutRect.top + borderRadius),
+              radius: borderRadius
+            ),
+            - (pi) / 2,
+            - (pi) / 2,
+          )
+          ..lineTo(cutOutRect.left, cutOutRect.top + _borderLength)
 
+          ..moveTo(cutOutRect.left, cutOutRect.bottom - _borderLength)
+          ..lineTo(cutOutRect.left, cutOutRect.bottom - borderRadius)
+          ..addArc(
+            Rect.fromCircle(
+              center: Offset(cutOutRect.left + borderRadius, cutOutRect.bottom - borderRadius),
+              radius: borderRadius
+            ),
+            pi,
+            - (pi / 2),
+          )
+          ..lineTo(cutOutRect.left + _borderLength, cutOutRect.bottom),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = borderWidth
+          ..strokeCap = StrokeCap.round
+          ..color = borderColor
+      )
+      // * Draw bottom and top right corner
+      ..drawPath(
+        Path()
+          ..moveTo(cutOutRect.right - _borderLength, cutOutRect.top)
+          ..lineTo(cutOutRect.right - borderRadius, cutOutRect.top)
+          ..addArc(
+            Rect.fromCircle(
+              center: Offset(cutOutRect.right - borderRadius, cutOutRect.top + borderRadius),
+              radius: borderRadius
+            ),
+            -pi / 2,
+            pi / 2,
+          )
+
+          ..lineTo(cutOutRect.right, cutOutRect.top + _borderLength)
+
+          ..moveTo(cutOutRect.right, cutOutRect.bottom - _borderLength)
+          ..lineTo(cutOutRect.right, cutOutRect.bottom - borderRadius)
+          ..addArc(
+            Rect.fromCircle(
+                center: Offset(cutOutRect.right - borderRadius, cutOutRect.bottom - borderRadius),
+                radius: borderRadius),
+            0,
+            pi / 2,
+          )
+          ..lineTo(cutOutRect.right - _borderLength, cutOutRect.bottom),
+
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = borderWidth
+          ..strokeCap = StrokeCap.round
+          ..color = borderColor
+      );
+      
+      if (hintLines) {
+        canvas
+          ..drawLine(
+            Offset(cutOutRect.left, cutOutRect.top + _borderLength),
+            Offset(cutOutRect.right, cutOutRect.top + _borderLength),
+            hintLinesPaint
+        )
+        ..drawLine(
+            Offset(cutOutRect.left, cutOutRect.bottom - _borderLength),
+            Offset(cutOutRect.right, cutOutRect.bottom - _borderLength),
+            hintLinesPaint
+        );
+      }
+      
+      canvas.restore();
+  }
   @override
   ShapeBorder scale(double t) {
     return QrScannerOverlayShape(
